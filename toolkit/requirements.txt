@@ -1,0 +1,17 @@
+# Toolkit only (export + golden reference + validation). The driver needs
+# nothing but numpy and an onnxruntime session the caller owns.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0
+onnx>=1.19
+onnxruntime-directml==1.24.4
+numpy>=2.0
+scipy>=1.13
+soundfile>=0.13
+pytest>=8.0
+# Imported by the upstream MSST architecture code:
+einops>=0.8
+rotary-embedding-torch>=0.8
+beartype>=0.19
+librosa>=0.11
+ml_collections>=1.0
+pyyaml>=6.0

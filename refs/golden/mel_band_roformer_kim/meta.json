@@ -1,0 +1,12 @@
+{
+  "model": "mel_band_roformer_kim",
+  "architecture": "mel_band_roformer",
+  "chunk_size": 352800,
+  "num_overlap": 2,
+  "n_fft": 2048,
+  "hop_length": 441,
+  "sample_rate": 44100,
+  "fixture_samples": 529200,
+  "golden_is_unpatched_upstream": true,
+  "torch": "2.13.0+cpu"
+}
