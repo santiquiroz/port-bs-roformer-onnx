@@ -109,11 +109,38 @@ All numbers measured on Ryzen + Radeon RX 7800 XT (DirectML), against golden dum
 
 ### Parity (`toolkit/validate_ort.py`)
 
-<!--PARITY_TABLE-->
+Gates: `mask` p99.9 < 1e-4 **and** RMS < 1e-5; `synth` SI-SDR > 100 dB; `quality` no more
+than 0.5 dB below the reference. `stft` and `drift` are printed, not gated.
+
+| stage | what it compares | CPU EP | DirectML |
+|---|---|---|---|
+| `stft` | driver numpy STFT vs `torch.stft` (chunk 0, spec peaks at 161) | max 1.54e-05, rms 5.3e-07, p99.9 4.6e-06 | same (no EP involved) |
+| `mask` | graph fed the **golden** spectrum vs golden mask | max 2.37e-05, rms 2.0e-07, p99.9 2.4e-06 **OK** | max 2.92e-05, rms 1.7e-07, p99.9 2.1e-06 **OK** |
+| `synth` | driver tail (complex mult + DC + iSTFT) on golden spec+mask | 138.4 dB **OK** | 138.4 dB **OK** |
+| `quality` | separation quality vs the fixture's ground-truth vocal | reference 0.71 dB, driver 1.00 dB, **+0.29 dB OK** | reference 0.71 dB, driver 1.00 dB, **+0.29 dB OK** |
+| `drift` | driver stems vs one specific reference run | 26.6 dB (informational — see below) | 26.6 dB (informational) |
+
+Net-level export parity (`toolkit/export_roformer.py`, random spectra, torch vs ORT CPU-EP,
+gate 1e-4): **max 1.40e-06**.
+
+The `quality` row moving *up* 0.29 dB is expected, not luck: the driver's STFT is computed in
+float64 and the reference's in float32.
 
 ### Throughput (`toolkit/bench_dml.py`)
 
-<!--BENCH_TABLE-->
+One graph call = one 8.00 s chunk (`spec [1, 2050, 801, 2]`). e2e = `RoformerDriver.separate()`
+on the 12 s fixture, which is 5 chunks because of the 50% overlap plus the reflect-padded border.
+6 timed runs after 2 warmups; RX 7800 XT, `onnxruntime-directml` 1.24.4.
+
+| EP | ms / chunk (best) | median | chunk realtime | e2e, 12 s fixture |
+|---|---|---|---|---|
+| CPU | 11667.7 | 12095.0 | 0.69x | 63.88 s (0.19x) |
+| DirectML | **1852.2** | 1926.3 | **4.32x** | **10.14 s (1.18x)** |
+
+DirectML is **6.3x** the CPU EP here. For scale against the other separators in this family:
+MDX-Net ONNX on the same card runs ~38x realtime, so this model costs roughly **9x more per
+second of audio** — the price of the accuracy. The numpy pre/post chain is not the bottleneck:
+at 5 chunks x 1.85 s the graph accounts for ~9.3 s of the 10.14 s e2e.
 
 ### The honest caveat: this architecture is chaotic at float32 resolution
 
