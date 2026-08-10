@@ -98,9 +98,13 @@ Radeon RX 7800 XT, Windows 11.
 
 ## Status
 
-**Artifacts**: `mel_band_roformer_kim_T801.onnx` (931 MB fp32, opset 17) plus `manifest.json`
-with the source checkpoint SHA-256, the graph SHA-256, the export patches applied and the
-measured parity. Build it yourself in three commands (below) or take it from the release.
+**Artifacts**: published as GitHub release
+[`models-v1.0`](https://github.com/santiquiroz/port-bs-roformer-onnx/releases/tag/models-v1.0) —
+`mel_band_roformer_kim_T801.onnx` (931 MB fp32, opset 17, sha256 `1b8afd77…f625a`) plus
+`manifest.json` recording the source checkpoint SHA-256, the graph SHA-256, the export patches
+applied, the weights licence and the measured parity. Or build it yourself in three commands
+(below) — the export refuses to run on a checkpoint hash mismatch, so a local build is
+verifiable against the same manifest.
 
 All numbers measured on Ryzen + Radeon RX 7800 XT (DirectML), against golden dumps produced by
 **unpatched** upstream MSST torch on the committed synthetic fixture
@@ -204,7 +208,9 @@ dynamic time axis is not available.
 ### Using the driver standalone
 
 `driver/` imports numpy and nothing else — no torch, no librosa, not even onnxruntime (the
-caller owns the session). A test enforces that. Vendor it as-is:
+caller owns the session). A test enforces that. Vendor it as-is, together with a
+[`models-v1.0`](https://github.com/santiquiroz/port-bs-roformer-onnx/releases/tag/models-v1.0)
+graph:
 
 ```python
 import numpy as np
