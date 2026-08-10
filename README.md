@@ -3,7 +3,7 @@
 **ONNX/DirectML port of BS-RoFormer and Mel-Band RoFormer — state-of-the-art music source separation on *any* DX12 GPU (AMD, Intel, NVIDIA), no CUDA, no torch at inference time.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![ONNX opset](https://img.shields.io/badge/ONNX%20opset-17-005CED.svg)](#artifacts)
+[![ONNX opset](https://img.shields.io/badge/ONNX%20opset-17-005CED.svg)](#status)
 [![DirectML](https://img.shields.io/badge/DirectML-AMD%20%7C%20Intel%20%7C%20NVIDIA-0078D4.svg)](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB.svg)](toolkit/setup-env.ps1)
 
@@ -137,10 +137,14 @@ on the 12 s fixture, which is 5 chunks because of the 50% overlap plus the refle
 | CPU | 11667.7 | 12095.0 | 0.69x | 63.88 s (0.19x) |
 | DirectML | **1852.2** | 1926.3 | **4.32x** | **10.14 s (1.18x)** |
 
-DirectML is **6.3x** the CPU EP here. For scale against the other separators in this family:
-MDX-Net ONNX on the same card runs ~38x realtime, so this model costs roughly **9x more per
-second of audio** — the price of the accuracy. The numpy pre/post chain is not the bottleneck:
-at 5 chunks x 1.85 s the graph accounts for ~9.3 s of the 10.14 s e2e.
+DirectML is **6.3x** the CPU EP here. The numpy pre/post chain is not the bottleneck: at
+5 chunks x 1.85 s the graph accounts for ~9.3 s of the 10.14 s e2e, so this is the network,
+not the driver.
+
+For scale: an MDX-Net ONNX graph on this same card measures ~38x realtime (0.153 s per 5.78 s
+chunk, measured separately, not in this repo). This model therefore costs roughly **9x more per
+second of audio** — that is the price of the accuracy, and it is the number to weigh before
+making it a default anywhere.
 
 ### The honest caveat: this architecture is chaotic at float32 resolution
 
