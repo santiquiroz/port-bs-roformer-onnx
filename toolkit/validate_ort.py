@@ -76,6 +76,18 @@ def _synthesis_only(spec: np.ndarray, mask: np.ndarray, cfg: RoformerSpec) -> np
     ])
 
 
+def truth_path(stem: str) -> Path:
+    """The fixture track a stem should be scored against, if one exists.
+
+    The fixture is synthesised source by source, so its file names are the
+    source names -- which coincide with the model stem ids everywhere except
+    `vocals`, whose track predates the multi-stem split and is named in the
+    singular. A stem with no matching track (`instrumental`, `dry`, ...) simply
+    gets no quality row rather than a wrong one.
+    """
+    return FIXTURE.parent / f"fixture_{'vocal' if stem == 'vocals' else stem}.wav"
+
+
 def stats(diff: np.ndarray) -> dict:
     return {
         "max": float(np.abs(diff).max()),
@@ -147,12 +159,17 @@ def validate(name: str, ep: str) -> bool:
 
     # 4. separation quality against ground truth, driver vs reference
     stems = RoformerDriver(run, driver_spec).separate(mix)
+    if stems.shape[0] != len(spec_model.stems):
+        raise SystemExit(
+            f"{name}: graph emitted {stems.shape[0]} stems, catalog declares "
+            f"{len(spec_model.stems)} {spec_model.stems}"
+        )
     for i, stem in enumerate(spec_model.stems):
-        truth_path = FIXTURE.parent / f"fixture_{'vocal' if stem == 'vocals' else stem}.wav"
+        track = truth_path(stem)
         drift = si_sdr(golden_stems[i], stems[i])
-        if truth_path.exists():
-            truth, _ = sf.read(truth_path, dtype="float32", always_2d=True)
-            truth = np.ascontiguousarray(truth.T)
+        if track.exists():
+            audio, _ = sf.read(track, dtype="float32", always_2d=True)
+            truth = np.ascontiguousarray(audio.T)
             ref_q = si_sdr(truth, golden_stems[i])
             drv_q = si_sdr(truth, stems[i])
             gate_ok = drv_q > ref_q - GATE_QUALITY_MARGIN_DB

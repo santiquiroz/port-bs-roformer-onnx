@@ -35,7 +35,9 @@ def windowing_array(chunk_size: int, fade_size: int) -> np.ndarray:
     return window
 
 
-def demix_reference(model, mix: np.ndarray, chunk_size: int, num_overlap: int, dumps: dict):
+def demix_reference(
+    model, mix: np.ndarray, chunk_size: int, num_overlap: int, num_stems: int, dumps: dict
+):
     """MSST `demix` generic mode, batch_size=1, in torch -- the golden path."""
     fade_size = chunk_size // 10
     step = chunk_size // num_overlap
@@ -45,7 +47,6 @@ def demix_reference(model, mix: np.ndarray, chunk_size: int, num_overlap: int, d
     if length_init > 2 * border and border > 0:
         tensor = torch.nn.functional.pad(tensor, (border, border), mode="reflect")
     total = tensor.shape[1]
-    num_stems = 1
     result = torch.zeros((num_stems, *tensor.shape))
     counter = torch.zeros((num_stems, *tensor.shape))
     base_window = torch.from_numpy(windowing_array(chunk_size, fade_size)).float()
@@ -90,6 +91,15 @@ def main() -> None:
         # UNPATCHED on purpose: the golden is upstream MSST as-is (flash SDPA,
         # nn.GLU), so the parity numbers include whatever the export patches cost.
         model = build_model(spec_model.arch, config, CHECKPOINTS / spec_model.checkpoint)
+        # The catalog names the stems; the net decides how many there are. A
+        # disagreement means the entry is wrong about the checkpoint, and every
+        # number downstream would be attributed to the wrong instrument.
+        num_stems = len(model.mask_estimators)
+        if num_stems != len(spec_model.stems):
+            raise SystemExit(
+                f"{name}: catalog declares {len(spec_model.stems)} stems "
+                f"{spec_model.stems} but the checkpoint has {num_stems} mask estimators"
+            )
         out_dir = GOLDEN / name
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -99,7 +109,12 @@ def main() -> None:
         wrapper = WRAPPERS[spec_model.arch](model).eval()
         dumps: dict[str, np.ndarray] = {}
         stems = demix_reference(
-            model, mix, int(config.audio.chunk_size), int(config.inference.num_overlap), dumps
+            model,
+            mix,
+            int(config.audio.chunk_size),
+            int(config.inference.num_overlap),
+            num_stems,
+            dumps,
         )
         with torch.inference_mode():
             chunk_spec = make_spec(model, torch.from_numpy(dumps["chunk0_input"])[None])
@@ -115,6 +130,7 @@ def main() -> None:
                 {
                     "model": name,
                     "architecture": spec_model.arch,
+                    "stems": list(spec_model.stems),
                     "chunk_size": int(config.audio.chunk_size),
                     "num_overlap": int(config.inference.num_overlap),
                     "n_fft": int(config.model.stft_n_fft),
