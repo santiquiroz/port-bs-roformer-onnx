@@ -29,6 +29,7 @@ The golden reference for every number below is
 | Model | Arch | Stems | Weights by | Weights licence | Published here |
 |---|---|---|---|---|---|
 | `mel_band_roformer_kim` | Mel-Band RoFormer | vocals / other | [KimberleyJensen](https://huggingface.co/KimberleyJSN/melbandroformer) | **MIT** (declared on the model card) | **yes** |
+| `bs_roformer_musdb18_4stem` | BS-RoFormer | **drums / bass / other / vocals** | [ZFTurbo](https://github.com/ZFTurbo/Music-Source-Separation-Training) | **none stated** (see below) | no — export it yourself |
 | `bs_roformer_viperx_1297` | BS-RoFormer | vocals / other | viperx | **none stated** | no — export it yourself |
 
 **On licensing, which decided which model got ported.** Kim's Mel-Band RoFormer is the
@@ -41,11 +42,43 @@ ONNX graph is **not** in the release. The toolkit exports it in one command if y
 checkpoint. Same rule for anything else you point the toolkit at — see
 [`toolkit/catalog.py`](toolkit/catalog.py), where `redistributable` is a per-model field.
 
-Other notable checkpoint families and what they declare, for anyone extending the catalog:
+### Why no 4-stem graph is published either
+
+The 4-stem BS-RoFormer is a release asset of
+[ZFTurbo/Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training),
+whose LICENSE is MIT. That looks like an MIT grant on the weights, and it is not. Asked directly,
+in [issue #90](https://github.com/ZFTurbo/Music-Source-Separation-Training/issues/90), whether
+the pretrained models could be redistributed in an open-source project, the repo owner answered:
+
+> Hello, not all models were posted by me. While I can add some open license on repo I think I
+> can't really decide on each model.
+> — ZFTurbo, 2024-11-04
+
+He added the LICENSE file two days later, in the same thread, answering a follow-up that asked
+only about *"the py code in this repo"*. **MIT covers the code; the author explicitly declined to
+license the checkpoints.** So the graph is exported, validated and benchmarked here, and not
+redistributed — the same call as viperx, reached by reading the thread instead of the LICENSE.
+
+The same reasoning removes the obvious fallbacks. **Demucs** (`htdemucs`, the usual "but it's
+MIT and it does 4 stems" answer) is not one: its author states in
+[demucs#327](https://github.com/facebookresearch/demucs/issues/327),
+
+> The model weights are not covered by the MIT license, and are provided only for scientific
+> purposes.
+> — adefossez, 2022-05-23
+
+never retracted. Third-party mirrors that re-tag those same weights `mit` or `apache-2.0` on
+HuggingFace are relabels, not grants. Other notable checkpoint families and what they declare:
 [anvuew](https://huggingface.co/anvuew) is **GPL-3.0** (dereverb, karaoke);
 [Sucial](https://huggingface.co/Sucial) and becruily's `deux` are **CC-BY-NC(-SA)**
 (non-commercial); **unwa/pcunwa** and **gabox** — the highest-SDR community models — declare
 **nothing at all**: no licence, no model card, no training-data statement.
+
+As far as this survey found, **no 4-stem separator of roformer-tier quality carries a
+redistributable weights licence.** The one genuinely permissive multi-stem model is
+[Open-Unmix `umxhq`](https://zenodo.org/records/3370489) (MIT on the record itself), a BiLSTM at
+roughly 5.4 dB average SDR against this model's 9.38 — a different quality tier and a different
+architecture, so porting it is its own project, not a variant of this one.
 
 ## How it works
 
@@ -127,6 +160,27 @@ than 0.5 dB below the reference. `stft` and `drift` are printed, not gated.
 Net-level export parity (`toolkit/export_roformer.py`, random spectra, torch vs ORT CPU-EP,
 gate 1e-4): **max 1.40e-06**.
 
+#### `bs_roformer_musdb18_4stem` — the same gates, four stems
+
+Every gate passes on both EPs. Net-level export parity: **max 6.71e-07**. The graph emits
+`mask [1, 4, 2050, 1101, 2]`; `quality` and `drift` are reported per stem.
+
+| stage | CPU EP | DirectML |
+|---|---|---|
+| `mask` | max 6.83e-06, rms 1.40e-07, p99.9 1.67e-06 **OK** | max 2.80e-05, rms 6.59e-07, p99.9 9.66e-06 **OK** |
+| `synth` | 139.7 dB **OK** | 139.7 dB **OK** |
+| `quality` drums | reference 18.92, driver 18.91, **-0.01 dB OK** | same |
+| `quality` bass | reference -7.29, driver -7.29, **+0.01 dB OK** | same |
+| `quality` other | reference -7.72, driver -7.64, **+0.08 dB OK** | same |
+| `quality` vocals | reference 17.65, driver 17.72, **+0.07 dB OK** | same |
+| `drift` | 36.6–54.2 dB per stem (informational) | same |
+
+The negative `bass` and `other` numbers are the fixture, not the port: its "bass" is a bare
+55 Hz sine and its "other" is a four-note chord bed, and the model files most of both under a
+different stem than the one the fixture calls them. Reference and driver agree to 0.08 dB on
+all four, which is what the gate is for. This model drifts far less than the mel-band one
+(36.6 dB against 26.6 dB) — same architecture family, less chaotic weights.
+
 The `quality` row moving *up* 0.29 dB is expected, not luck: the driver's STFT is computed in
 float64 and the reference's in float32.
 
@@ -149,6 +203,24 @@ For scale: an MDX-Net ONNX graph on this same card measures ~38x realtime (0.153
 chunk, measured separately, not in this repo). This model therefore costs roughly **9x more per
 second of audio** — that is the price of the accuracy, and it is the number to weigh before
 making it a default anywhere.
+
+#### `bs_roformer_musdb18_4stem` is another ~9x on top of that
+
+| EP | ms / chunk (best) | median | chunk realtime | e2e, 12 s fixture |
+|---|---|---|---|---|
+| CPU | 24434.3 | 25259.7 | 0.45x | 120.15 s (0.10x) |
+| DirectML | **17235.3** | 17786.0 | **0.64x** | **94.19 s (0.13x)** |
+
+**Quote the e2e number, not the chunk number.** At 0.13x realtime a 4-minute song takes about
+**31 minutes** on an RX 7800 XT. The chunk figure (0.64x) understates it by roughly 2x, because
+chunks overlap 50% and every second of audio goes through the graph twice.
+
+DirectML is only **1.4x** the CPU EP here, against 6.3x for the mel-band model, which looks like
+CPU fallback and is not: profiling the graph with `enable_profiling` puts **258 of 258 nodes on
+`DmlExecutionProvider`**, none on the CPU EP. The model is simply much heavier per chunk —
+T=1101 instead of 801 with quadratic attention, and **four** mask-estimator stacks over 62 bands
+instead of one. Splitting a mix four ways on this card costs about **200x** what an MDX-Net pass
+costs, and that is the number to weigh, not the SDR.
 
 ### The honest caveat: this architecture is chaotic at float32 resolution
 
@@ -248,10 +320,19 @@ progress reporting are deliberately out of scope — `RoformerDriver.separate` t
 Two things that will matter to an integrator:
 
 - **The graph is ~931 MB fp32** and holds a ~1.3 GB attention intermediate at T=801. Budget
-  VRAM accordingly, or export at a shorter chunk.
-- **Stems are `num_stems` outputs, not a primary/secondary pair.** These checkpoints predict
-  one stem (`vocals`); the instrumental is `mix - vocals`, with no compensation factor — unlike
-  MDX-Net, which needs one.
+  VRAM accordingly, or export at a shorter chunk. The 4-stem graph is ~533 MB at T=1101.
+- **Stems are `num_stems` outputs, not a primary/secondary pair.** The single-stem checkpoints
+  predict `vocals` and the instrumental is `mix - vocals`, with no compensation factor — unlike
+  MDX-Net, which needs one. A 4-stem checkpoint predicts all four and there is no residual at
+  all, so an integration that hardcodes "one inferred stem plus its complement" will silently
+  serve `stems[0]` four times.
+- **Read the stem order out of the config; do not assume it.** The 4-stem model stacks its mask
+  estimators in the order of `training.instruments`, which is
+  **`drums, bass, other, vocals`** — not alphabetical, and not the `bass/drums/vocals/other`
+  ordering used by Demucs and by most of the SDR tables, *including the MSST model-zoo row for
+  this very checkpoint*. `manifest.json` records the real order per model; the catalog entry
+  carries it too, and `capture_baseline.py` refuses to run if the two disagree with the
+  checkpoint's actual mask-estimator count.
 
 ## Credits & licence
 

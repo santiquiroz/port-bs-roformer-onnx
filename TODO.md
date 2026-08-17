@@ -15,6 +15,22 @@ everything below it is genuinely not done.
 - DirectML GLU miscomputation found, characterised with micro-graphs, and worked around.
 - `mel_band_roformer_kim` (MIT weights) exported, validated, benchmarked and published in the
   `models-v1.0` release with `manifest.json` (source + graph SHA-256).
+- **Multi-stem.** `bs_roformer_musdb18_4stem` (drums/bass/other/vocals) exported, golden
+  captured, all gates green on CPU and DirectML, benchmarked. The driver needed no change; the
+  toolkit did — `capture_baseline.py` hardcoded `num_stems = 1` and the fixture had no
+  per-instrument ground truth. Both fixed, and the fixture now emits its three instrumental
+  sources separately with `fixture_mix.wav` unchanged sample-for-sample, so the existing golden
+  stays valid. The graph is **not** published: see the licence finding in the README.
+
+### Upflow integration (done)
+
+Integrated in Upflow v0.62.0. `RoformerSeparator` builds on `OnnxStemSeparator`, so it reuses the
+session cache, cancellation and 44.1 kHz I/O. The emitted stem is paired with a residual made by
+plain subtraction, without an MDX `compensate` factor. Long inputs run in overlapping chunks with
+crossfade, and the audio UI warns before selecting this deliberately slow model. End-to-end it
+takes about 50 seconds per minute of audio on the RX 7800 XT, roughly 20x slower than MDX. That is
+the relevant product cost, not the earlier 9x graph-to-graph comparison: RoFormer processes chunks
+with 50% overlap.
 
 ## Not done
 
@@ -23,7 +39,8 @@ Only fp32 is published. fp16 would halve the 931 MB download and the ~1.3 GB att
 intermediate, and DirectML handles fp16 well. Not attempted at all — no measurement exists of
 what fp16 costs in mask accuracy for this architecture, and given how sensitive it is to
 float32-level input differences (see README), that measurement is the whole job. Do not assume
-it is free.
+it is free. It matters most for the 4-stem graph: at 0.13x realtime end to end, that is the one
+where halving the attention intermediate could plausibly decide whether it is usable at all.
 
 ### BS-RoFormer golden + gates
 `bs_roformer_viperx_1297` exports cleanly and its DirectML parity was verified at a short chunk
@@ -39,11 +56,14 @@ the reference, but it cannot detect a change that degrades separation on real mu
 fixture would be a short public-domain multitrack with real stems. Until then, judge quality on
 real material by ear.
 
-### Second stem / multi-stem checkpoints
-The catalog only holds single-stem (`vocals`) models. The driver already returns
-`[num_stems, C, N]` and `SpecOnlyBSRoformer` already stacks every mask estimator, so a 4-stem
-checkpoint should work unchanged — but it has never been run. `RoformerSpec.stems` and the
-golden capture assume one stem in a couple of places worth re-reading first.
+### A publishable multi-stem checkpoint
+`bs_roformer_musdb18_4stem` works (see Done) but cannot be redistributed, so nobody gets a
+4-stem graph without a torch install and a 527 MB download. The survey behind that call found
+**no** 4-stem separator of roformer-tier quality with a redistributable weights licence. The
+only genuinely permissive multi-stem model is Open-Unmix `umxhq` (MIT on its Zenodo record),
+which is a BiLSTM at ~5.4 dB average SDR — a different architecture and a different quality
+tier, so it is a separate port, not a variant of this one. Worth doing anyway if the goal is
+"anyone can run 4 stems", because it is the only one that can actually ship.
 
 ### Upstream the DirectML bug
 The `Split(2) -> Sigmoid -> Mul` miscomputation on the DirectML EP is reproducible in about 20
@@ -55,11 +75,3 @@ Not possible without replacing the rotary embedding: it caches its frequency tab
 length, so the traced graph is fixed at one chunk length. Exporting several fixed lengths is the
 practical workaround (`--chunk`). A rewrite that computes the rotary table inside the graph would
 lift this, and has not been attempted.
-
-### Upflow integration
-Out of scope here by design. What it needs: a `RoformerSeparator` alongside
-`mdx_separator.py` / `vr_deecho_separator.py`, reusing `OnnxStemSeparator` for the session cache,
-cancellation and 44.1 kHz I/O. Two things do not map onto the MDX engine's assumptions —
-these graphs emit one stem with the residual being a plain subtraction (no `compensate` factor),
-and the model is ~10x heavier per second of audio than MDX (4.3x realtime vs 38x on the same
-card), so it belongs behind an explicit "high quality, slow" choice rather than as a default.
