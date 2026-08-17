@@ -107,7 +107,7 @@ def graph_path(name: str) -> Path:
     return ARTIFACTS / manifest["models"][name]["file"]
 
 
-def validate(name: str, ep: str) -> bool:
+def validate(name: str, ep: str, model_path: Path | None = None) -> bool:
     spec_model = MODELS[name]
     golden = GOLDEN / name
     meta = json.loads((golden / "meta.json").read_text())
@@ -119,7 +119,7 @@ def validate(name: str, ep: str) -> bool:
         sample_rate=meta["sample_rate"],
         stems=spec_model.stems,
     )
-    sess = make_session(graph_path(name), ep)
+    sess = make_session(model_path or graph_path(name), ep)
     run = lambda spec: sess.run(None, {"spec": spec})[0]  # noqa: E731
 
     ok = True
@@ -184,10 +184,16 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("names", nargs="*", default=None)
     ap.add_argument("--ep", nargs="+", default=["cpu", "dml"], choices=list(EPS))
+    ap.add_argument("--model-path", type=Path,
+                    help="override the manifest graph path (requires exactly one model name)")
     args = ap.parse_args()
 
+    names = args.names or list(MODELS)
+    if args.model_path is not None and len(names) != 1:
+        ap.error("--model-path requires exactly one model name")
+
     all_ok = True
-    for name in args.names or list(MODELS):
+    for name in names:
         if not (GOLDEN / name / "meta.json").exists():
             print(f"{name}: no golden dump, skipping (run toolkit/capture_baseline.py)")
             continue
@@ -196,7 +202,7 @@ def main() -> None:
                 print(f"{name} [{ep}]: provider unavailable, skipping")
                 continue
             print(f"{name} [{ep}]")
-            all_ok &= validate(name, ep)
+            all_ok &= validate(name, ep, args.model_path)
     raise SystemExit(0 if all_ok else 1)
 
 

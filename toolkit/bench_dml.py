@@ -40,12 +40,18 @@ def main() -> None:
     ap.add_argument("--warmup", type=int, default=2)
     ap.add_argument("--runs", type=int, default=6)
     ap.add_argument("--skip-e2e", action="store_true")
+    ap.add_argument("--model-path", type=Path,
+                    help="override the manifest graph path (requires exactly one model name)")
     args = ap.parse_args()
+
+    names = args.names or list(MODELS)
+    if args.model_path is not None and len(names) != 1:
+        ap.error("--model-path requires exactly one model name")
 
     mix, _ = sf.read(FIXTURE, dtype="float32", always_2d=True)
     mix = np.ascontiguousarray(mix.T)
 
-    for name in args.names or list(MODELS):
+    for name in names:
         manifest = json.loads((ARTIFACTS / "manifest.json").read_text())["models"].get(name)
         if manifest is None:
             print(f"{name}: not exported, skipping")
@@ -64,7 +70,7 @@ def main() -> None:
         for ep in args.ep:
             if EPS[ep] not in ort.get_available_providers():
                 continue
-            sess = make_session(graph_path(name), ep)
+            sess = make_session(args.model_path or graph_path(name), ep)
             times = bench_graph(sess, spec, args.warmup, args.runs)
             best, med = min(times), statistics.median(times)
             line = (f"{name} [{ep}] graph: best={best*1000:8.1f} ms  median={med*1000:8.1f} ms  "

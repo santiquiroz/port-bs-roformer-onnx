@@ -12,3 +12,4 @@ __pycache__/
 # already has the .ckpt.
 refs/golden/bs_roformer_musdb18_4stem/
 *_4stem.log
+.relman/

@@ -35,12 +35,27 @@ with 50% overlap.
 ## Not done
 
 ### fp16 graph
-Only fp32 is published. fp16 would halve the 931 MB download and the ~1.3 GB attention
-intermediate, and DirectML handles fp16 well. Not attempted at all — no measurement exists of
-what fp16 costs in mask accuracy for this architecture, and given how sensitive it is to
-float32-level input differences (see README), that measurement is the whole job. Do not assume
-it is free. It matters most for the 4-stem graph: at 0.13x realtime end to end, that is the one
-where halving the attention intermediate could plausibly decide whether it is usable at all.
+**Measured 2026-08-17 — see `docs/fp16-findings.md`. Nothing fp16 is published, and the
+reason is not the same for the two models.**
+
+`bs_roformer_musdb18_4stem`: 508.0 → 254.9 MiB, 17235 → 1432 ms per chunk (**12x**), end to
+end 0.13x → **1.23x realtime**, costing 0.03-0.06 dB on the three stems the model actually
+separates. That flips this model from unusable to faster than realtime. It cannot be
+published anyway — the weights are the licence problem below — but it means that if that
+licence is ever resolved, the model ships as something usable rather than as a 31-minute
+wait per song.
+
+`mel_band_roformer_kim`: 887.9 → 444.5 MiB, 1852 → 725 ms per chunk (2.6x), end to end 1.18x
+→ 2.83x realtime, costing **1.25 dB** on vocals. This is the one that could be published, and
+it is the one that fails. The fp16 output agrees with the fp32 output at only 14.4 dB SI-SDR
+where the 4-stem stems agree at 30-40 dB, so this is a real regression and not the weak
+fixture talking. Keeping `MatMul` in fp32 — which leaves nearly every weight at fp32 and
+gives up the size win — does not recover it, so there is no block list that fixes it.
+
+Still open: an automatic mixed-precision search would answer whether some non-obvious set of
+nodes recovers `kim`. `toolkit/auto_fp16.py` has the setup; the converter's own baseline
+check aborts before converting anything, which is a bug in it, not a tolerance problem
+(this graph is bit-deterministic on the DirectML EP — two runs agree to exactly 0.0).
 
 ### BS-RoFormer golden + gates
 `bs_roformer_viperx_1297` exports cleanly and its DirectML parity was verified at a short chunk
@@ -83,7 +98,9 @@ releasing it CC0, which is a project of its own.
 
 ### A publishable multi-stem checkpoint
 `bs_roformer_musdb18_4stem` works (see Done) but cannot be redistributed, so nobody gets a
-4-stem graph without a torch install and a 527 MB download. The survey behind that call found
+4-stem graph without a torch install and a 527 MB download. Worth noting alongside the
+licence problem: in fp16 this model runs at 1.23x realtime instead of 0.13x, so the thing
+blocking it is now purely the licence, not the cost of running it. The survey behind that call found
 **no** 4-stem separator of roformer-tier quality with a redistributable weights licence. The
 only genuinely permissive multi-stem model is Open-Unmix `umxhq` (MIT on its Zenodo record),
 which is a BiLSTM at ~5.4 dB average SDR — a different architecture and a different quality
