@@ -27,12 +27,28 @@ TupleSafeLoader.add_constructor(
 )
 
 
+def resolve_config(rel_path: str) -> Path:
+    """A catalog `config` path, against the MSST checkout then this repo.
+
+    Most upstream configs live in the checkout's `configs/`. A few are published
+    only as GitHub release assets and never land in the repo tree; those are
+    vendored under `toolkit/configs/` (they are MIT, same as the checkout) so a
+    model is not unbuildable just because its config is not a tracked file.
+    """
+    for root in (MSST_ROOT, REPO):
+        path = root / rel_path
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        f"{rel_path} found under neither {MSST_ROOT} nor {REPO} "
+        "-- set MSST_ROOT or run toolkit/setup-env.ps1"
+    )
+
+
 def load_config(rel_path: str):
     from ml_collections import ConfigDict
 
-    path = MSST_ROOT / rel_path
-    if not path.exists():
-        raise FileNotFoundError(f"{path} -- set MSST_ROOT or run toolkit/setup-env.ps1")
+    path = resolve_config(rel_path)
     return ConfigDict(yaml.load(path.read_text(), Loader=TupleSafeLoader))
 
 
