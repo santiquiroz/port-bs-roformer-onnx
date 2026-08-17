@@ -12,6 +12,8 @@ everything below it is genuinely not done.
   overlap-add. Enforced torch-free by a test that parses the imports and by a subprocess run
   with `torch` poisoned.
 - Staged parity gates against unpatched upstream MSST torch, on CPU EP and DirectML EP.
+  All three catalog models are validated the same way, `bs_roformer_viperx_1297` included
+  (2026-08-17) — no model rests on a short-chunk spot check any more.
 - DirectML GLU miscomputation found, characterised with micro-graphs, and worked around.
 - `mel_band_roformer_kim` (MIT weights) exported, validated, benchmarked and published in the
   `models-v1.0` release with `manifest.json` (source + graph SHA-256).
@@ -57,12 +59,33 @@ nodes recovers `kim`. `toolkit/auto_fp16.py` has the setup; the converter's own 
 check aborts before converting anything, which is a bug in it, not a tolerance problem
 (this graph is bit-deterministic on the DirectML EP — two runs agree to exactly 0.0).
 
-### BS-RoFormer golden + gates
-`bs_roformer_viperx_1297` exports cleanly and its DirectML parity was verified at a short chunk
-(T=101, max 6.7e-06), but no golden dump, no full-chunk validation and no bench exist for it —
-its weights are not redistributable, so it was not the priority. Running
-`capture_baseline.py` + `validate_ort.py` on it needs only the checkpoint and about 20 minutes
-of CPU.
+### ~~BS-RoFormer golden + gates~~ — done 2026-08-17
+`bs_roformer_viperx_1297` now has a golden dump and full-chunk gates on both EPs, so all three
+models in the catalog are validated the same way and the second architecture is no longer
+resting on a short-chunk spot check.
+
+Export: 38.9 s, 644.4 MB, torch vs ORT-CPU max `1.013e-06` rms `8.277e-09`.
+
+| gate | CPU EP | DirectML EP |
+|---|---|---|
+| `mask` | max `2.861e-06`, rms `1.157e-08`, p99.9 `1.192e-07` **OK** | max `1.937e-06`, rms `1.428e-08`, p99.9 `1.937e-07` **OK** |
+| `synth` | 136.5 dB **OK** | 136.5 dB **OK** |
+| `quality` vocals | ref -14.58, driver -14.93, delta -0.35 dB **OK** | same |
+| `drift` | 28.6 dB (informational) | 28.6 dB |
+
+| EP | ms / chunk (best) | median | chunk realtime | e2e, 12 s fixture |
+|---|---|---|---|---|
+| CPU | 24393.5 | 24438.4 | 0.33x | 122.60 s (0.10x) |
+| DirectML | **2208.5** | 2209.9 | **3.62x** | **11.69 s (1.03x)** |
+
+The golden dump is **not** committed, same call as the 4-stem one: the weights are not
+redistributable, so anyone who can regenerate the dump already has the checkpoint, and
+committing a dump derived from those weights would redistribute them by another route.
+
+One thing the numbers say about the fixture rather than the model: the reference itself scores
+**-14.58 dB** on the fixture's vocals. The gates prove the port matches the reference to
+1.9e-06 on the mask, which is what they are for; they say nothing about how well this model
+separates real music. See the fixture survey below.
 
 ### A realistic fixture
 `refs/inputs/fixture_mix.wav` is synthetic and both the reference and the port score only

@@ -184,6 +184,28 @@ all four, which is what the gate is for. This model drifts far less than the mel
 The `quality` row moving *up* 0.29 dB is expected, not luck: the driver's STFT is computed in
 float64 and the reference's in float32.
 
+#### `bs_roformer_viperx_1297` — the same gates again
+
+Validated 2026-08-17, so all three catalog models are held to one standard and none rests on a
+short-chunk spot check. Net-level export parity: **max 1.013e-06**, rms 8.277e-09.
+
+| stage | CPU EP | DirectML |
+|---|---|---|
+| `mask` | max 2.861e-06, rms 1.157e-08, p99.9 1.192e-07 **OK** | max 1.937e-06, rms 1.428e-08, p99.9 1.937e-07 **OK** |
+| `synth` | 136.5 dB **OK** | 136.5 dB **OK** |
+| `quality` vocals | reference -14.58, driver -14.93, **-0.35 dB OK** | same |
+| `drift` | 28.6 dB (informational) | same |
+
+Its mask agrees an order of magnitude tighter than the other two models', and the reference
+scores **-14.58 dB** on the fixture's vocal — the lowest of the three. Both facts point the
+same way: this graph is more numerically stable, and the fixture is a poor proxy for what the
+model does to real music. The gate here is doing its actual job (the port matches the
+reference to 1.9e-06) and nothing more.
+
+The golden dump for this model is not committed: its weights are not redistributable, so
+whoever can regenerate it already has the checkpoint, and shipping a dump derived from those
+weights would be redistributing them by another route.
+
 ### Throughput (`toolkit/bench_dml.py`)
 
 One graph call = one 8.00 s chunk (`spec [1, 2050, 801, 2]`). e2e = `RoformerDriver.separate()`
@@ -203,6 +225,17 @@ For scale: an MDX-Net ONNX graph on this same card measures ~38x realtime (0.153
 chunk, measured separately, not in this repo). This model therefore costs roughly **9x more per
 second of audio** — that is the price of the accuracy, and it is the number to weigh before
 making it a default anywhere.
+
+#### `bs_roformer_viperx_1297`, same chunk length, other architecture
+
+| EP | ms / chunk (best) | median | chunk realtime | e2e, 12 s fixture |
+|---|---|---|---|---|
+| CPU | 24393.5 | 24438.4 | 0.33x | 122.60 s (0.10x) |
+| DirectML | **2208.5** | 2209.9 | **3.62x** | **11.69 s (1.03x)** |
+
+Same 8.00 s chunk as the mel-band model and 1.19x its per-chunk cost on DirectML, so BS-RoFormer
+is slightly more expensive at equal chunk length — but 2.1x on the CPU EP, where the gap between
+the two architectures is much wider than on the GPU.
 
 #### `bs_roformer_musdb18_4stem` is another ~9x on top of that
 

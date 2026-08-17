@@ -11,5 +11,10 @@ __pycache__/
 # and its checkpoint is not redistributable anyway, so anyone who can capture it
 # already has the .ckpt.
 refs/golden/bs_roformer_musdb18_4stem/
+# Same call for viperx: its weights are not redistributable either, so whoever
+# can regenerate this dump already has the checkpoint, and committing a dump
+# derived from those weights would be redistributing them by another route.
+refs/golden/bs_roformer_viperx_1297/
 *_4stem.log
+.viperx_*.log
 .relman/
