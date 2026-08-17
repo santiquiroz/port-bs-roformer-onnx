@@ -52,9 +52,34 @@ of CPU.
 ### A realistic fixture
 `refs/inputs/fixture_mix.wav` is synthetic and both the reference and the port score only
 ~1 dB SI-SDR on it, which makes the `quality` gate weak: it proves the port is not worse than
-the reference, but it cannot detect a change that degrades separation on real music. A better
-fixture would be a short public-domain multitrack with real stems. Until then, judge quality on
-real material by ear.
+the reference, but it cannot detect a change that degrades separation on real music. Until
+that is fixed, judge quality on real material by ear.
+
+**Surveyed 2026-08-17; still blocked, and the reason is licensing, not effort.** What a fixture
+has to be here is narrow: committable to a public repo, so redistributable under a licence that
+permits it; real recorded music with real stems; and coherent, because unrelated sources mixed
+together are *easier* to separate than a real arrangement, which would raise the score without
+strengthening the gate. Nothing checked satisfies all three:
+
+| Candidate | Licence | Why it fails |
+|---|---|---|
+| MUSDB18 / MUSDB18-HQ | CC BY-NC-SA, academic use only, access on request | not redistributable |
+| MedleyDB | CC BY-NC-SA | not redistributable |
+| MoisesDB | research licence | not redistributable |
+| Cambridge-MT "Recording Secrets" backing stems | free for educational use | not redistributable |
+| Open Multitrack Testbed (QMUL) | mixed CC | host is down — 403 over TLS, 502 over HTTP |
+| Slakh2100 | **CC BY 4.0**, redistributable | rendered from MIDI, so no vocals at all; and it ships as a single 104 GB tarball with no per-track download |
+| VocalSet | **CC BY 4.0**, redistributable | real singing, but a cappella technique exercises, and only 2–6 GB zips |
+
+So the only two permissively licensed sources found are exactly the two halves that cannot be
+made into one coherent song: VocalSet has voices and no music, Slakh has music and no voices.
+Gluing them, or gluing public-domain instrumental recordings together, buys spectral realism
+(real transients, real harmonic structure, real reverb tails) but not musical coherence — and
+musical coherence is what the current gate is missing. That is why this has not been done: the
+half-measure would make the numbers look better while leaving the weakness in place.
+
+The one path that would actually work is commissioning or recording a short multitrack and
+releasing it CC0, which is a project of its own.
 
 ### A publishable multi-stem checkpoint
 `bs_roformer_musdb18_4stem` works (see Done) but cannot be redistributed, so nobody gets a
