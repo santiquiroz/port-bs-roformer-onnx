@@ -55,9 +55,15 @@ the pretrained models could be redistributed in an open-source project, the repo
 > — ZFTurbo, 2024-11-04
 
 He added the LICENSE file two days later, in the same thread, answering a follow-up that asked
-only about *"the py code in this repo"*. **MIT covers the code; the author explicitly declined to
-license the checkpoints.** So the graph is exported, validated and benchmarked here, and not
-redistributed — the same call as viperx, reached by reading the thread instead of the LICENSE.
+only about *"the py code in this repo"*. **So MIT covers the code, and no one has said anything
+about the checkpoints either way.** That is not the same as a refusal — he did not decline, he
+declined to speak for models other people trained, and asked which ones were wanted. So the graph
+is exported, validated and benchmarked here, and not redistributed until someone with standing
+says yes — the same call as viperx, reached by reading the thread instead of the LICENSE.
+
+Asked directly for this one, since `model_bs_roformer_ep_17_sdr_9.6568.ckpt` is served from his
+own release rather than a third party's:
+[issue #249](https://github.com/ZFTurbo/Music-Source-Separation-Training/issues/249).
 
 The same reasoning removes the obvious fallbacks. **Demucs** (`htdemucs`, the usual "but it's
 MIT and it does 4 stems" answer) is not one: its author states in

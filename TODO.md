@@ -123,17 +123,26 @@ releasing it CC0, which is a project of its own.
 `bs_roformer_musdb18_4stem` works (see Done) but cannot be redistributed, so nobody gets a
 4-stem graph without a torch install and a 527 MB download. Worth noting alongside the
 licence problem: in fp16 this model runs at 1.23x realtime instead of 0.13x, so the thing
-blocking it is now purely the licence, not the cost of running it. The survey behind that call found
+blocking it is now purely the licence, not the cost of running it.
+
+**Asked, 2026-08-17:**
+[MSST#249](https://github.com/ZFTurbo/Music-Source-Separation-Training/issues/249) requests
+permission to redistribute the ONNX graph of this one checkpoint — chosen because it is served
+from ZFTurbo's own release rather than a third party's, which is exactly the distinction he drew
+in #90 when he said he could not decide for models other people posted. Awaiting an answer; the
+graph stays unpublished either way until there is one. The survey behind that call found
 **no** 4-stem separator of roformer-tier quality with a redistributable weights licence. The
 only genuinely permissive multi-stem model is Open-Unmix `umxhq` (MIT on its Zenodo record),
 which is a BiLSTM at ~5.4 dB average SDR — a different architecture and a different quality
 tier, so it is a separate port, not a variant of this one. Worth doing anyway if the goal is
 "anyone can run 4 stems", because it is the only one that can actually ship.
 
-### Upstream the DirectML bug
-The `Split(2) -> Sigmoid -> Mul` miscomputation on the DirectML EP is reproducible in about 20
-lines and is not reported anywhere upstream. It deserves an onnxruntime issue; anything that
-exports `nn.GLU` (a lot of audio and NLP models) is silently affected.
+### ~~Upstream the DirectML bug~~ — filed 2026-08-17
+`Split(2) -> Sigmoid -> Mul` on the DirectML EP is reported as
+[onnxruntime#32146](https://github.com/microsoft/onnxruntime/issues/32146), with the ~20-line
+repro from `docs/onnxruntime-dml-glu-bug.md`. Anything exporting `nn.GLU` — a lot of audio and
+NLP models — is silently affected, so the value is in someone else being able to reproduce it
+without ever seeing this repo.
 
 ### Dynamic time axis
 Not possible without replacing the rotary embedding: it caches its frequency table per sequence
