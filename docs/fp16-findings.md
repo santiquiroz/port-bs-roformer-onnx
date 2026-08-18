@@ -115,5 +115,20 @@ keeping the point of the exercise.
   `Validation failed for model with nothing converted to fp16`, i.e. its own baseline check
   fails before any conversion happens. That is not a tolerance problem on this hardware —
   measured separately, this graph on the DirectML EP is bit-deterministic: two runs in one
-  session and a run in a fresh session all agree to **exactly 0.0**. The search is worth
-  retrying against a fixed or patched converter; `toolkit/auto_fp16.py` keeps the setup.
+  session and a run in a fresh session all agree to **exactly 0.0**.
+
+- **A node-level bisection written here instead** (`toolkit/bisect_fp16.py`, since the library's
+  own search never runs). This is the one that settles it. Over `mel_band_roformer_kim`'s 4275
+  convertible nodes, measuring each candidate against the **fp32 graph's own output**:
+
+  | kept in fp32 on top of the floor | p99.9 vs fp32 | size |
+  |---|---:|---:|
+  | nothing | 3.83e-02 | 444.5 MiB |
+  | first half (2137 nodes) | 3.29e-02 | 480.4 MiB |
+  | second half (2138 nodes) | 4.49e-02 | 853.3 MiB |
+  | first quarter (1068 nodes) | 2.79e-02 | 457.6 MiB |
+
+  Blocking **half the network** buys 14%, and the target was one order of magnitude. Blocking
+  the other half makes it *worse* and inflates the file past the fp32 original. There is no
+  block list that fixes this: the loss is spread across the stack, exactly as the `MatMul` row
+  above suggested. **fp16 for `mel_band_roformer_kim` is closed, not pending.**

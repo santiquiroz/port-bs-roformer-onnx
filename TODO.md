@@ -54,10 +54,14 @@ where the 4-stem stems agree at 30-40 dB, so this is a real regression and not t
 fixture talking. Keeping `MatMul` in fp32 — which leaves nearly every weight at fp32 and
 gives up the size win — does not recover it, so there is no block list that fixes it.
 
-Still open: an automatic mixed-precision search would answer whether some non-obvious set of
-nodes recovers `kim`. `toolkit/auto_fp16.py` has the setup; the converter's own baseline
-check aborts before converting anything, which is a bug in it, not a tolerance problem
-(this graph is bit-deterministic on the DirectML EP — two runs agree to exactly 0.0).
+**Closed 2026-08-18, negative.** The library's mixed-precision search never runs (its own
+baseline check aborts with nothing converted), so the bisection was written here:
+`toolkit/bisect_fp16.py`, over all 4275 convertible nodes, scoring each candidate against the
+fp32 graph's own output. Blocking half the network moves p99.9 from 3.83e-02 to 3.29e-02 — 14%,
+against a target one order of magnitude away — and blocking the other half makes it worse while
+inflating the file past the fp32 original. The loss is spread through the stack; there is no
+block list that fixes it. Do not re-open this without a different idea than "find the right
+nodes".
 
 ### ~~BS-RoFormer golden + gates~~ — done 2026-08-17
 `bs_roformer_viperx_1297` now has a golden dump and full-chunk gates on both EPs, so all three
